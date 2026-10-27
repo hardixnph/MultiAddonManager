@@ -1,7 +1,7 @@
 /**
  * =============================================================================
  * MultiAddonManager
- * Copyright (C) 2024-2025 xen
+ * Copyright (C) 2024-2026 xen
  * =============================================================================
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -17,15 +17,11 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "networkbasetypes.pb.h"
-
-#include <stdio.h>
 #include "multiaddonmanager.h"
+#include "networkbasetypes.pb.h"
 #include "module.h"
-#include "utils/plat.h"
 #include "convar.h"
 #include "filesystem/ifilesystem.h"
-#include "steam/steam_gameserver.h"
 #include <string>
 #include <sstream>
 #include <fstream>
@@ -1020,7 +1016,8 @@ KHook::Return<void> MultiAddonManager::Hook_SetPendingHostStateRequest(CHostStat
 	// (which happens at the end of a map), the server-defined addon does not change.
 	// Also, host state requests coming from that function will always have "ChangeLevel" in its KV's name.
 	// We can use this information to always be aware of what the original addon is.
-	AddonId workhopMap = m_CurrentWorkshopMap;
+
+	m_LoadingWorkshopMap = m_CurrentWorkshopMap;
 	
 	if (!pRequest->m_pKV)
 	{
@@ -1032,16 +1029,16 @@ KHook::Return<void> MultiAddonManager::Hook_SetPendingHostStateRequest(CHostStat
 		// Workshop map changes from end of match votes have null keyvalues
 		// ...and when such votes lead to reloading the CURRENT map, m_Addons will also be null, in which case we want to keep the workshop map unchanged
 		if (!pRequest->m_Addons.IsEmpty())
-			workhopMap = pRequest->m_Addons.Get();
+			m_LoadingWorkshopMap = pRequest->m_Addons.Get();
 		else if (bValveMap) // Sadly this will include any workshop maps that share names with shipped Valve maps, but at this point there's no way to tell
-			workhopMap.clear();
+			m_LoadingWorkshopMap.clear();
 	}
 	else if (V_stricmp(pRequest->m_pKV->GetName(), "ChangeLevel"))
 	{
 		if (!V_stricmp(pRequest->m_pKV->GetName(), "map_workshop"))
-			workhopMap = pRequest->m_pKV->GetString("customgamemode", "");
+			m_LoadingWorkshopMap = pRequest->m_pKV->GetString("customgamemode", "");
 		else
-			workhopMap.clear();
+			m_LoadingWorkshopMap.clear();
 	}
 
 	// Valve changed the way community maps (like de_dogtown) are loaded
@@ -1049,13 +1046,13 @@ KHook::Return<void> MultiAddonManager::Hook_SetPendingHostStateRequest(CHostStat
 	// So check if the addon is indeed one of the community maps and keep it, otherwise clients would error out due to missing assets
 	// Each map has its own folder under game/csgo_community_addons which is mounted as "OFFICIAL_ADDONS"
 	if (!pRequest->m_Addons.IsEmpty() && g_pFullFileSystem->IsDirectory(pRequest->m_Addons.String(), "OFFICIAL_ADDONS"))
-		workhopMap = pRequest->m_Addons.Get();
+		m_LoadingWorkshopMap = pRequest->m_Addons.Get();
 
 	if (m_ExtraAddons.empty())
 		return {KHook::Action::Ignore};
 
 	// Rebuild the addon list. We always start with the original addon.
-	if (workhopMap.empty())
+	if (m_LoadingWorkshopMap.empty())
 	{
 		pRequest->m_Addons = VectorToString(m_ExtraAddons).c_str();
 	}
@@ -1063,8 +1060,8 @@ KHook::Return<void> MultiAddonManager::Hook_SetPendingHostStateRequest(CHostStat
 	{
 		// Don't add the same addon twice. Hopefully no server owner is diabolical enough to do things like `map de_dust2 customgamemode=1234,5678`.
 		std::vector<AddonId> newAddons = m_ExtraAddons;
-		RemoveValue(newAddons, workhopMap);
-		newAddons.insert(newAddons.begin(), workhopMap);
+		RemoveValue(newAddons, m_LoadingWorkshopMap);
+		newAddons.insert(newAddons.begin(), m_LoadingWorkshopMap);
 		pRequest->m_Addons = VectorToString(newAddons).c_str();
 	}
 
@@ -1073,16 +1070,8 @@ KHook::Return<void> MultiAddonManager::Hook_SetPendingHostStateRequest(CHostStat
 
 KHook::Return<void> MultiAddonManager::Hook_SwitchToLoop(IEngineServiceMgr* pThis, const char* pszLoopModeName, KeyValues* pkvLoopOptions, uint32 nId, const char* pszAddonName, bool)
 {
-	if (V_stricmp(pszLoopModeName, "levelload"))
-		return {KHook::Action::Ignore};
-
-	std::string sLevelName = pkvLoopOptions->GetString("levelname");
-	std::string sLevelAddon = pkvLoopOptions->GetString("customgamemode");
-
-	m_CurrentWorkshopMap = sLevelAddon;
-
-	if (g_pFullFileSystem->IsDirectory(sLevelName.c_str(), "OFFICIAL_ADDONS"))
-		m_CurrentWorkshopMap = sLevelName;
+	if (!V_stricmp(pszLoopModeName, "levelload"))
+		m_CurrentWorkshopMap = m_LoadingWorkshopMap;
 
 	return {KHook::Action::Ignore};
 }

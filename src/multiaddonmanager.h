@@ -1,7 +1,7 @@
 /**
  * =============================================================================
  * MultiAddonManager
- * Copyright (C) 2024-2025 xen
+ * Copyright (C) 2024-2026 xen
  * =============================================================================
  *
  * This program is free software; you can redistribute it and/or modify it under
@@ -31,7 +31,6 @@
 #include "engine2/serversideclient.h"
 #include "engine2/hoststate.h"
 #include "khook.hpp"
-#include "utlvector.h"
 #include <deque>
 #include "networksystem/inetworkserializer.h"
 #include "steam/steam_api_common.h"
@@ -205,7 +204,7 @@ private:
 
 	bool m_bSteamConnected = false;
 
-	// Used when reloading current map
+	AddonId m_LoadingWorkshopMap;
 	AddonId m_CurrentWorkshopMap;
 
 	std::set<uint64> m_TimedOutClients;
