@@ -993,18 +993,21 @@ KHook::Return<bool> MultiAddonManager::Hook_SendNetMessage(CServerSideClientBase
 
 	auto pMsg = const_cast<CNetMessage*>(pData)->ToPB<CNETMsg_SignonState>();
 
+	// Exempt clients are never told to download or switch addons
+	if (IsExemptClient(steamID64))
+	{
+		if (pMsg->signon_state() == SIGNONSTATE_CHANGELEVEL)
+			pMsg->set_addons("");
+
+		clientInfo.currentPendingAddon.clear();
+		return {KHook::Action::Ignore};
+	}
+
 	std::vector<AddonId> addons;
 	g_MultiAddonManager.GetClientAddons(addons, steamID64);
 
 	if (pMsg->signon_state() == SIGNONSTATE_CHANGELEVEL)
 	{
-		if (IsExemptClient(steamID64))
-		{
-			// Never tell exempt clients to download addons on changelevel
-			pMsg->set_addons("");
-			clientInfo.currentPendingAddon.clear();
-			return {KHook::Action::Ignore};
-		}
 		// When switching to another map, the signon message might contain more than 1 addon.
 		// This puts the client in limbo because client doesn't know how to handle multiple addons at the same time.
 		std::vector<AddonId> addonsList;
