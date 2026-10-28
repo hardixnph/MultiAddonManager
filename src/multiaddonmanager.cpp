@@ -52,7 +52,10 @@ static bool IsExemptClient(uint64 steamID64)
         tok.erase(0, tok.find_first_not_of(" \t\""));
         tok.erase(tok.find_last_not_of(" \t\"") + 1);
         if (tok == target)
+        {
+            Message("Exempting %llu from extra addons\n", (unsigned long long)steamID64);
             return true;
+        }
     }
     return false;
 }
@@ -1231,6 +1234,14 @@ KHook::Return<void> MultiAddonManager::Hook_ReplyConnection(CNetworkGameServerBa
 	// Figure out which addons the client should be loading.
 	std::vector<AddonId> clientAddons;
 	GetClientAddons(clientAddons, steamID64);
+	// Exempt clients keep only the workshop map (if any), no extra addons
+	if (IsExemptClient(steamID64))
+	{
+		clientAddons.erase(
+			std::remove_if(clientAddons.begin(), clientAddons.end(),
+				[&](const AddonId &id) { return id != m_CurrentWorkshopMap; }),
+			clientAddons.end());
+	}
 	if (clientAddons.empty())
 	{
 		// No addons to send. This means the list of original addons is empty as well.
