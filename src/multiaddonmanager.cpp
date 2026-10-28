@@ -34,31 +34,8 @@ CConVar<bool> mm_cache_clients_with_addons("mm_cache_clients_with_addons", FCVAR
 CConVar<float> mm_cache_clients_duration("mm_cache_clients_duration", FCVAR_NONE, "How long to cache clients' downloaded addons list in seconds, pass 0 for forever.", 0.0f);
 CConVar<float> mm_addon_connection_timeout("mm_addon_connection_timeout", FCVAR_NONE, "How long until clients are timed out while downloading the first required addon (usually the current map), 0 disables", 30.f);
 CConVar<float> mm_extra_addons_timeout("mm_extra_addons_timeout", FCVAR_NONE, "How long until clients are timed out in between connects for extra addons in seconds, requires mm_extra_addons to be used", 10.f);
-CConVar<CUtlString> mm_exempt_steamids("mm_exempt_steamids", FCVAR_NONE, "Comma-separated SteamID64s that will never be sent extra addons", CUtlString("76561197965364115"));
 
 CConVar<bool> mm_addon_debug("mm_addon_debug", FCVAR_NONE, "Whether to print some extra debug information", false);
-
-static bool IsExemptClient(uint64 steamID64)
-{
-    if (!steamID64)
-        return false;
-
-    const std::string target = std::to_string(steamID64);
-    std::stringstream ss(mm_exempt_steamids.Get().Get());
-    std::string tok;
-
-    while (std::getline(ss, tok, ','))
-    {
-        tok.erase(0, tok.find_first_not_of(" \t\""));
-        tok.erase(tok.find_last_not_of(" \t\"") + 1);
-        if (tok == target)
-        {
-            Message("Exempting %llu from extra addons\n", (unsigned long long)steamID64);
-            return true;
-        }
-    }
-    return false;
-}
 
 void Message(const char *msg, ...)
 {
@@ -84,6 +61,29 @@ void Panic(const char *msg, ...)
 	Warning("[MultiAddonManager] %s", buf);
 
 	va_end(args);
+}
+
+CConVar<CUtlString> mm_exempt_steamids("mm_exempt_steamids", FCVAR_NONE, "Comma-separated SteamID64s that will never be sent extra addons", CUtlString("76561197965364115"));
+static bool IsExemptClient(uint64 steamID64)
+{
+    if (!steamID64)
+        return false;
+
+    const std::string target = std::to_string(steamID64);
+    std::stringstream ss(mm_exempt_steamids.Get().Get());
+    std::string tok;
+
+    while (std::getline(ss, tok, ','))
+    {
+        tok.erase(0, tok.find_first_not_of(" \t\""));
+        tok.erase(tok.find_last_not_of(" \t\"") + 1);
+        if (tok == target)
+        {
+            Message("Exempting %llu from extra addons\n", (unsigned long long)steamID64);
+            return true;
+        }
+    }
+    return false;
 }
 
 void StringToVector(const char *pszString, std::vector<AddonId> &vector)
