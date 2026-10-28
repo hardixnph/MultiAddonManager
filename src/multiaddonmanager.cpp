@@ -998,6 +998,13 @@ KHook::Return<bool> MultiAddonManager::Hook_SendNetMessage(CServerSideClientBase
 
 	if (pMsg->signon_state() == SIGNONSTATE_CHANGELEVEL)
 	{
+		if (IsExemptClient(steamID64))
+		{
+			// Never tell exempt clients to download addons on changelevel
+			pMsg->set_addons("");
+			clientInfo.currentPendingAddon.clear();
+			return {KHook::Action::Ignore};
+		}
 		// When switching to another map, the signon message might contain more than 1 addon.
 		// This puts the client in limbo because client doesn't know how to handle multiple addons at the same time.
 		std::vector<AddonId> addonsList;
