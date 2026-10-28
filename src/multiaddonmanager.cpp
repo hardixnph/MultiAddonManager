@@ -43,12 +43,18 @@ static bool IsExemptClient(uint64 steamID64)
     if (!steamID64)
         return false;
 
-    CUtlVector<std::string> ids;
-    StringToVector(mm_exempt_steamids.Get().Get(), ids);
+    const std::string target = std::to_string(steamID64);
+    std::stringstream ss(mm_exempt_steamids.Get().Get());
+    std::string tok;
 
-    char buf[32];
-    V_snprintf(buf, sizeof(buf), "%llu", (unsigned long long)steamID64);
-    return ids.Find(buf) != -1;
+    while (std::getline(ss, tok, ','))
+    {
+        tok.erase(0, tok.find_first_not_of(" \t\""));
+        tok.erase(tok.find_last_not_of(" \t\"") + 1);
+        if (tok == target)
+            return true;
+    }
+    return false;
 }
 
 void Message(const char *msg, ...)
@@ -876,14 +882,9 @@ void MultiAddonManager::GetClientAddons(std::vector<AddonId> &addons, uint64 ste
 			addons.push_back(addon);
 	}
 
-	if (!GetCurrentWorkshopMap().empty())
-        addons.AddToTail(GetCurrentWorkshopMap().c_str());
-
-    // Exempt clients only get the workshop map, no extra addons
-    if (IsExemptClient(steamID64))
+	if (IsExemptClient(steamID64))
         return;
 
-    addons.AddVectorToTail(m_MountedAddons);
 	// If we specify a client steamID64, check for the addons exclusive to this client as well.
 	if (steamID64)
 	{
