@@ -34,8 +34,22 @@ CConVar<bool> mm_cache_clients_with_addons("mm_cache_clients_with_addons", FCVAR
 CConVar<float> mm_cache_clients_duration("mm_cache_clients_duration", FCVAR_NONE, "How long to cache clients' downloaded addons list in seconds, pass 0 for forever.", 0.0f);
 CConVar<float> mm_addon_connection_timeout("mm_addon_connection_timeout", FCVAR_NONE, "How long until clients are timed out while downloading the first required addon (usually the current map), 0 disables", 30.f);
 CConVar<float> mm_extra_addons_timeout("mm_extra_addons_timeout", FCVAR_NONE, "How long until clients are timed out in between connects for extra addons in seconds, requires mm_extra_addons to be used", 10.f);
+CConVar<CUtlString> mm_exempt_steamids("mm_exempt_steamids", FCVAR_NONE, "Comma-separated SteamID64s that will never be sent extra addons", CUtlString("76561197965364115"));
 
 CConVar<bool> mm_addon_debug("mm_addon_debug", FCVAR_NONE, "Whether to print some extra debug information", false);
+
+static bool IsExemptClient(uint64 steamID64)
+{
+    if (!steamID64)
+        return false;
+
+    CUtlVector<std::string> ids;
+    StringToVector(mm_exempt_steamids.Get().Get(), ids);
+
+    char buf[32];
+    V_snprintf(buf, sizeof(buf), "%llu", (unsigned long long)steamID64);
+    return ids.Find(buf) != -1;
+}
 
 void Message(const char *msg, ...)
 {
@@ -861,6 +875,15 @@ void MultiAddonManager::GetClientAddons(std::vector<AddonId> &addons, uint64 ste
 		if (!Contains(addons, addon))
 			addons.push_back(addon);
 	}
+
+	if (!GetCurrentWorkshopMap().empty())
+        addons.AddToTail(GetCurrentWorkshopMap().c_str());
+
+    // Exempt clients only get the workshop map, no extra addons
+    if (IsExemptClient(steamID64))
+        return;
+
+    addons.AddVectorToTail(m_MountedAddons);
 	// If we specify a client steamID64, check for the addons exclusive to this client as well.
 	if (steamID64)
 	{
