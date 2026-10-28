@@ -1231,17 +1231,22 @@ KHook::Return<void> MultiAddonManager::Hook_ReplyConnection(CNetworkGameServerBa
 	// Server copies the CUtlString from CNetworkGameServer to this client.
 	CUtlString originalAddons = pThis->m_szAddonName;
 
+	if (IsExemptClient(steamID64))
+	{
+		// Don't let the engine fall back to its own addon string for this client.
+		// Keep only the workshop map (if any); no extra addons.
+		clientInfo.currentPendingAddon.clear();
+		pThis->m_szAddonName = m_CurrentWorkshopMap.empty() ? "" : m_CurrentWorkshopMap.c_str();
+
+		m_hookReplyConnection.CallOriginal(pThis, pClient);
+
+		pThis->m_szAddonName = originalAddons;
+		return {KHook::Action::Supersede};
+	}
+
 	// Figure out which addons the client should be loading.
 	std::vector<AddonId> clientAddons;
 	GetClientAddons(clientAddons, steamID64);
-	// Exempt clients keep only the workshop map (if any), no extra addons
-	if (IsExemptClient(steamID64))
-	{
-		clientAddons.erase(
-			std::remove_if(clientAddons.begin(), clientAddons.end(),
-				[&](const AddonId &id) { return id != m_CurrentWorkshopMap; }),
-			clientAddons.end());
-	}
 	if (clientAddons.empty())
 	{
 		// No addons to send. This means the list of original addons is empty as well.
